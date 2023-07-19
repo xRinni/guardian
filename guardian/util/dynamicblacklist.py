@@ -99,20 +99,19 @@ def get_azure_ip_ranges_download(
 
     If multiple possibly valid files were found on the page, only the file with the highest changeNumber will be returned.
     """
-
     # Get the actual page.
     try:
-        response = requests.get(page_to_search)
+        headers = {'User-Agent': 'Guardian'}
+        response = requests.get(page_to_search, headers=headers)
         response.raise_for_status()
         if response.status_code != 200:
             raise ScrapeError(
                 f"URL to scrape returned {response.status_code} instead of 200.",
                 response,
             )
-
         # Search through the HTML for all download.microsoft.com JSON files.
         re_files = re.findall(MICROSOFT_DOWNLOAD_REGEX, str(response.content))
-        if re_files is None:
+        if len(re_files) == 0:
             raise ScrapeError(
                 "Did not find any valid download URLs while searching the page.",
                 response,
@@ -136,7 +135,11 @@ def azure_file_add_timestamp(azure_file_contents: bytes, filename: str) -> bytes
 
 
 def parse_azure_ip_ranges(azure_file_contents: bytes) -> list[str]:
-    azure_cloud_json = json.loads(azure_file_contents)
+    try:
+        azure_cloud_json = json.loads(azure_file_contents)
+    except json.JSONDecodeError as e:
+        raise ValueError("Invalid json parse failed: [{}]".format(str(azure_file_contents))) from e
+
     categories = azure_cloud_json["values"]
     arr_ranges = next(
         (
